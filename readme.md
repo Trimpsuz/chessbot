@@ -8,7 +8,7 @@
 
 - Clone the repository
 - Install the dependencies
-- Create the 'engine' directory, add the stockfish executable from https://stockfishchess.org/download/ to the it and rename it to 'engine.exe'
+- Create the 'engine' directory, add the stockfish executable from https://stockfishchess.org/download/ to it and rename it to 'engine.exe'
 - Add the userscript.js to your userscript manager
 - Run the index.js file with NodeJS
 
