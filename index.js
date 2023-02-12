@@ -1,6 +1,5 @@
 import { WebSocketServer } from 'ws';
 import { Chess } from 'chess.js';
-import say from 'say';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -13,7 +12,7 @@ const chess = new Chess();
 
 let playingAs = null;
 
-const depth = '7';
+const depth = '6';
 const movetime = '45000';
 
 let bestmove = '';
@@ -160,10 +159,8 @@ engine.stdout.on('data', function (msg) {
         bestmove = bestmove.slice(0, -1);
 
         console.log(getPieceName(chess.get(bestmove.charAt(0) + bestmove.charAt(1)).type) + ` ${bestmove.charAt(2) + bestmove.charAt(3)}` + ' Promote To ' + getPieceName(promoteTo));
-        say.speak(getPieceName(chess.get(bestmove.charAt(0) + bestmove.charAt(1)).type) + ` ${bestmove.charAt(2) + bestmove.charAt(3)}` + ' Promote To ' + getPieceName(promoteTo));
       } else {
         console.log(getPieceName(chess.get(bestmove.charAt(0) + bestmove.charAt(1)).type) + ` ${bestmove.charAt(2) + bestmove.charAt(3)}`);
-        say.speak(getPieceName(chess.get(bestmove.charAt(0) + bestmove.charAt(1)).type) + ` ${bestmove.charAt(2) + bestmove.charAt(3)}`);
       }
 
       wss.clients.forEach(function each(client) {
