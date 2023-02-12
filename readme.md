@@ -8,7 +8,7 @@
 
 - Clone the repository
 - Install the dependencies
-- Add the stockfish executable from https://stockfishchess.org/download/ to the 'engine' folder and rename it to 'engine.exe'
+- Create the 'engine' directory, add the stockfish executable from https://stockfishchess.org/download/ (other UCI engines should work, although not tested) to it and rename it to 'engine.exe'
 - Add the userscript.js to your userscript manager
 - Run the index.js file with NodeJS
 
@@ -25,6 +25,7 @@
 - [ ] Fix bugs
 - [ ] Add a config system for easy configuration of depth etc without needing to edit the code
 - [ ] Add support for other chess websites, such as [Lichess.org](https://lichess.org)
+- [ ] Add support for the variants on [Chess.com](https://www.chess.com)
 
 ### License
 
