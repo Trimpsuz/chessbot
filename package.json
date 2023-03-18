@@ -8,7 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Trimpsuz",
-  "license": "ISC",
+  "license": "GPLv3",
   "dependencies": {
     "chess.js": "^0.13.0",
     "child_process": "^1.0.2",
