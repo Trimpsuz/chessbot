@@ -119,20 +119,17 @@ setInterval(function () {
 
     //Check whose turn it is
 
-    let movelist = Array.from(document.getElementsByClassName('move'));
-
-    movelist = movelist.pop();
-
-    let originalDivs = Array.from(movelist.getElementsByTagName('div'));
-
+    let movelist = Array.from(Array.from(document.getElementsByClassName('timestamps-with-base-time')[0].children).pop().children)
     let divs = [];
 
-    originalDivs.forEach((div) => {
+    movelist.forEach((div) => {
       if (div.classList.contains('time-black') || div.classList.contains('time-white')) {
         return;
       }
       divs.push(div);
     });
+
+      console.log(divs.length);
 
     if (playingAs == 0) {
       //Playing as Black
