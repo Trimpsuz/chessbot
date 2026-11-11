@@ -3,7 +3,7 @@
 // @namespace   ChessBot
 // @match       *://*.chess.com/*
 // @grant       none
-// @version     2.0.2
+// @version     2.0.3
 // @author      Trimpsuz
 // @description ChessBot Userscript
 // ==/UserScript==
@@ -12,21 +12,51 @@ var oldboard;
 let doc = window.document;
 let playingAs = null;
 var mousePressed = false;
-ws = null;
+let ws = null;
+let reconnectTimer = null;
+let sentBoard = null;
 
-const connect = (url) => {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    ws.onopen = () => resolve(ws);
-    ws.onerror = (err) => reject(err);
-  });
-};
+function connect() {
+  const socket = new WebSocket('ws://127.0.0.1:5678');
 
-ws = await connect('ws://127.0.0.1:5678');
+  socket.onopen = () => {
+    ws = socket;
+    console.log('Connected to server');
 
-async function tryconnect() {
-  ws = await connect('ws://127.0.0.1:5678');
+    // Force the interval to send the current board again after a reconnect
+    oldboard = undefined;
+    sentBoard = null;
+
+    // Restore the side setting that the server loses when it restarts
+    if (playingAs != null) {
+      sendToServer(JSON.stringify({ type: 'setting', data: { key: 'side', value: playingAs } }));
+    }
+  };
+
+  socket.onmessage = handleMessage;
+
+  socket.onclose = () => {
+    if (ws === socket) {
+      ws = null;
+      console.log('Lost connection to server, reconnecting...');
+    }
+
+    if (!reconnectTimer) {
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, 2000);
+    }
+  };
 }
+
+function sendToServer(data) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(data);
+  }
+}
+
+connect();
 
 document.onmousedown = function (e) {
   if (e.button == 0) {
@@ -40,16 +70,81 @@ document.onmouseup = function (e) {
   }
 };
 
+// mouseup does not fire when the window loses focus mid-drag
+window.onblur = function () {
+  mousePressed = false;
+};
+
+// The board can be updated while the tab is hidden, so re-evaluate it on return
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState == 'visible') {
+    oldboard = undefined;
+  }
+});
+
 document.oncontextmenu = function () {
   return false;
 };
 
 setInterval(function () {
-  let send = [];
-  var board = Array.from(document.getElementsByClassName('piece'));
-  board = board.map((piece) => piece.getAttribute('class'));
+  //A held piece makes the board snapshot unreliable
+  if (mousePressed) {
+    return;
+  }
 
-  if (JSON.stringify(board) != JSON.stringify(oldboard) && !mousePressed) {
+  const boardElement = document.getElementsByClassName('board')[0];
+
+  if (!boardElement) {
+    return;
+  }
+
+  const board = Array.from(boardElement.getElementsByClassName('piece')).map((piece) => piece.getAttribute('class') || '');
+  const boardChanged = JSON.stringify(board) != JSON.stringify(oldboard);
+
+  //Build the position every tick: while the tab is in the background the board
+  //and the move list can update on different ticks.
+  const send = [];
+
+  board.forEach((element) => {
+    const classes = element.split(/\s+/);
+    const squareClass = classes.find((name) => name.startsWith('square-'));
+    const pieceClass = classes.find((name) => /^[wb][pnbrqk]$/.test(name));
+
+    if (!squareClass || !pieceClass) {
+      return;
+    }
+
+    const coords = squareClass.slice('square-'.length);
+
+    if (!/^[1-8][1-8]$/.test(coords)) {
+      return;
+    }
+
+    const file = 'abcdefgh'.charAt(Number(coords.charAt(0)) - 1);
+    send.push(pieceClass + coords.charAt(1) + file);
+  });
+
+  //A snapshot taken mid-animation can be incomplete. Skip it and retry next tick.
+  const squares = new Set(send.map((piece) => piece.slice(2)));
+  if (!send.some((piece) => piece.startsWith('wk')) || !send.some((piece) => piece.startsWith('bk')) || squares.size != send.length) {
+    console.log('Board snapshot incomplete, retrying');
+    oldboard = undefined;
+    return;
+  }
+
+  //Check whose turn it is
+  const timestamps = document.getElementsByClassName('timestamps-with-base-time')[0];
+
+  if (!timestamps || timestamps.children.length == 0) {
+    return;
+  }
+
+  const lastRow = timestamps.children[timestamps.children.length - 1];
+  const divs = Array.from(lastRow.children).filter((div) => {
+    return !div.classList.contains('time-black') && !div.classList.contains('time-white');
+  });
+
+  if (boardChanged) {
     //check if the left mouse button is down, because if the user is holding onto a piece it would not get detected with the board and the board information would be incorrect
     //Board is updated
     console.log('board updated');
@@ -81,70 +176,17 @@ setInterval(function () {
 
     var gameid = document.URL.substring(document.URL.lastIndexOf('/') + 1);
 
+    const coordinates = document.querySelector('.board > svg.coordinates > text:nth-child(8)');
+
     //Change sides
-    if (document.querySelector('.board > svg.coordinates > text:nth-child(8)').textContent == '1' && playingAs != 1) {
+    if (coordinates && coordinates.textContent == '1' && playingAs != 1) {
       playingAs = 1;
-      ws.send(JSON.stringify({ type: 'setting', data: { key: 'side', value: 1 } }));
+      sendToServer(JSON.stringify({ type: 'setting', data: { key: 'side', value: 1 } }));
       console.log('Playing as white');
-    } else if (document.querySelector('.board > svg.coordinates > text:nth-child(8)').textContent == '8' && playingAs != 0) {
+    } else if (coordinates && coordinates.textContent == '8' && playingAs != 0) {
       playingAs = 0;
-      ws.send(JSON.stringify({ type: 'setting', data: { key: 'side', value: 0 } }));
+      sendToServer(JSON.stringify({ type: 'setting', data: { key: 'side', value: 0 } }));
       console.log('Playing as black');
-    }
-
-    //Clean board array
-    board.forEach((element) => {
-      if (element.split(' ')[1].charAt(0) == 's') {
-        element = element.split(' ')[0] + ' ' + element.split(' ')[2] + ' ' + element.split(' ')[1];
-      }
-
-      var spot = element.replace('piece', '').replace('square-', '').replace(/\s+/g, '');
-
-      spot =
-        spot.slice(0, -2) +
-        spot.charAt(spot.length - 1) +
-        spot
-          .charAt(spot.length - 2)
-          .replace('1', 'a')
-          .replace('2', 'b')
-          .replace('3', 'c')
-          .replace('4', 'd')
-          .replace('5', 'e')
-          .replace('6', 'f')
-          .replace('7', 'g')
-          .replace('8', 'h');
-
-      send.push(spot);
-    });
-
-    //Check whose turn it is
-
-    let movelist = Array.from(Array.from(document.getElementsByClassName('timestamps-with-base-time')[0].children).pop().children)
-    let divs = [];
-
-    movelist.forEach((div) => {
-      if (div.classList.contains('time-black') || div.classList.contains('time-white')) {
-        return;
-      }
-      divs.push(div);
-    });
-
-      console.log(divs.length);
-
-    if (playingAs == 0) {
-      //Playing as Black
-      if (divs.length == 1) {
-        //Send board array
-        ws.send(JSON.stringify(send));
-        console.log('it is your turn');
-      }
-    } else if (playingAs == 1) {
-      //Playing as White
-      if (divs.length == 2) {
-        //Send board array
-        ws.send(JSON.stringify(send));
-        console.log('it is your turn');
-      }
     }
 
     //Check if board is in starting position
@@ -152,20 +194,38 @@ setInterval(function () {
       JSON.stringify(send) ==
       '["br8h","bn8g","bb8f","bk8e","bq8d","bb8c","bn8b","br8a","bp7h","bp7g","bp7f","bp7e","bp7d","bp7c","bp7b","bp7a","wp2h","wp2g","wp2f","wp2e","wp2d","wp2c","wp2b","wp2a","wr1h","wn1g","wb1f","wk1e","wq1d","wb1c","wn1b","wr1a"]'
     ) {
-      if (ws.readyState != WebSocket.CONNECTING) {
-        tryconnect();
-      }
       console.log('New game started');
-      ws.send(JSON.stringify({ type: 'message', data: 'New game started' }));
+      sendToServer(JSON.stringify({ type: 'message', data: 'New game started' }));
       playingAs = null;
+      sentBoard = null;
     }
   }
+
+  const isOurTurn = (playingAs == 0 && divs.length == 1) || (playingAs == 1 && divs.length == 2);
+
+  //Only send once per position: if the move list updates before the board,
+  //wait for the board update instead of sending the previous position.
+  if (!isOurTurn || (!boardChanged && JSON.stringify(send) == JSON.stringify(sentBoard))) {
+    return;
+  }
+
+  //Send board array
+  sendToServer(JSON.stringify(send));
+  sentBoard = send;
+  console.log('it is your turn');
 }, 400);
 
-ws.addEventListener('message', ({ data }) => {
+function handleMessage({ data }) {
   var gameid = document.URL.substring(document.URL.lastIndexOf('/') + 1);
 
   var boardElement = document.getElementsByClassName('board')[0];
+
+  if (JSON.parse(data).type == 'resend') {
+    // The server restarted its engine; make the interval send the board again.
+    oldboard = undefined;
+    sentBoard = null;
+    return;
+  }
 
   if (JSON.parse(data).data.key == 'first') {
     key = JSON.parse(data).data.value;
@@ -244,4 +304,4 @@ ws.addEventListener('message', ({ data }) => {
     boardElement.append(moveFromElement2);
     boardElement.append(moveToElement2);
   }
-});
+}
