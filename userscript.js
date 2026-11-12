@@ -369,6 +369,7 @@ function getLichessBoard(wrap) {
     return null;
   }
 
+  const blackAtBottom = wrap.classList.contains('orientation-black');
   const send = [];
   const squares = new Set();
   let unstable = false;
@@ -392,8 +393,12 @@ function getLichessBoard(wrap) {
     }
 
     const rect = piece.getBoundingClientRect();
-    const file = Math.round((rect.left - bounds.left) / squareSize);
-    const rank = 8 - Math.round((rect.top - bounds.top) / squareSize);
+    const visualFile = Math.round((rect.left - bounds.left) / squareSize);
+    const visualRank = Math.round((rect.top - bounds.top) / squareSize);
+
+    // When the board is flipped, screen coordinates are rotated 180 degrees
+    const file = blackAtBottom ? 7 - visualFile : visualFile;
+    const rank = blackAtBottom ? visualRank + 1 : 8 - visualRank;
 
     if (file < 0 || file > 7 || rank < 1 || rank > 8) {
       unstable = true;
