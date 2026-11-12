@@ -1,6 +1,6 @@
 # Chess Bot
 
-## A JavaScript-based chess bot for [Chess.com](https://www.chess.com) that suggests moves for you while you play using the Stockfish engine.
+## A JavaScript-based chess bot for [Chess.com](https://www.chess.com) and [Lichess.org](https://lichess.org) that suggests moves for you while you play using the Stockfish engine.
 
 ### The userscript.js contains the userscript to be ran using an userscript manager like [Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://violentmonkey.github.io/). The index.js file contains the server and is supposed to be ran using NodeJS.
 
@@ -24,7 +24,7 @@
 - [ ] Clean up the code
 - [ ] Fix bugs
 - [ ] Add a config system for easy configuration of depth etc without needing to edit the code
-- [ ] Add support for other chess websites, such as [Lichess.org](https://lichess.org)
+- [x] Add support for [Lichess.org](https://lichess.org)
 - [ ] Add support for the variants on [Chess.com](https://www.chess.com)
 
 ### License
