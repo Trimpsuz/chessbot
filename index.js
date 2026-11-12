@@ -10,6 +10,12 @@ const chess = new Chess();
 
 let engine = null;
 
+function writeEngine(command) {
+  engine.stdin.cork();
+  engine.stdin.write(command + '\n');
+  engine.stdin.uncork();
+}
+
 function startEngine(restarted = false) {
   const proc = spawn('./engine/engine.exe');
   let stopped = false;
@@ -79,21 +85,10 @@ function broadcastControl(type) {
   sendToClients({ type });
 }
 
+const pieceNames = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
+
 function getPieceName(piece) {
-  switch (piece) {
-    case 'p':
-      return 'pawn';
-    case 'n':
-      return 'knight';
-    case 'b':
-      return 'bishop';
-    case 'r':
-      return 'rook';
-    case 'q':
-      return 'queen';
-    case 'k':
-      return 'king';
-  }
+  return pieceNames[piece];
 }
 
 function isSupportedBoard(board) {
@@ -156,14 +151,14 @@ function isSupportedBoard(board) {
 wss.on('connection', (ws) => {
   console.log('New client connected!');
 
-  engine.stdin.cork();
-  engine.stdin.write('ucinewgame\n');
-  engine.stdin.uncork();
+  writeEngine('ucinewgame');
 
   ws.on('message', (data) => {
-    if (data.toString().charAt(0) == '[' && data.toString().charAt(data.toString().length - 1) == ']') {
+    const message = JSON.parse(data);
+
+    if (Array.isArray(message)) {
       //Message contains board data
-      const board = JSON.parse(data);
+      const board = message;
 
       if (!isSupportedBoard(board)) {
         console.error('Ignoring unsupported board position');
@@ -192,23 +187,15 @@ wss.on('connection', (ws) => {
 
       console.log('Position: ' + fen);
 
-      engine.stdin.cork();
-      engine.stdin.write('setoption name MultiPV value 3\n');
-      engine.stdin.uncork();
-
-      engine.stdin.cork();
-      engine.stdin.write('position fen ' + fen + '\n');
-      engine.stdin.uncork();
-
-      engine.stdin.cork();
-      engine.stdin.write('go depth ' + depth + '\n');
-      engine.stdin.uncork();
-    } else if (JSON.parse(data).type == 'setting') {
+      writeEngine('setoption name MultiPV value 3');
+      writeEngine('position fen ' + fen);
+      writeEngine('go depth ' + depth);
+    } else if (message.type == 'setting') {
       //Message contains settings
 
-      if (JSON.parse(data).data.key == 'side') {
-        if (playingAs != JSON.parse(data).data.value) {
-          playingAs = JSON.parse(data).data.value;
+      if (message.data.key == 'side') {
+        if (playingAs != message.data.value) {
+          playingAs = message.data.value;
 
           console.log('\nStockfish on depth ' + depth);
           if (playingAs == 0) {
@@ -220,21 +207,16 @@ wss.on('connection', (ws) => {
           }
         }
       }
-    } else if (JSON.parse(data).type == 'message') {
+    } else if (message.type == 'message') {
       //Message contains generic message
 
-      if (JSON.parse(data).data == 'New game started') {
+      if (message.data == 'New game started') {
         playingAs = null;
         promoteTo = '';
         fen = '';
 
-        engine.stdin.cork();
-        engine.stdin.write('ucinewgame\n');
-        engine.stdin.uncork();
-
-        engine.stdin.cork();
-        engine.stdin.write('position startpos\n');
-        engine.stdin.uncork();
+        writeEngine('ucinewgame');
+        writeEngine('position startpos');
       }
     }
   });
